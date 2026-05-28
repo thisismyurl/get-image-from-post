@@ -73,6 +73,12 @@ Finally, if you'd like to copy the results into a variable you can return the re
 
 == Change Log ==
 
+= 2026.0.0 =
+
+* added WP 7 Abilities API support: ability `get-image-from-post/get-image` (readonly) resolves a post's image via featured -> attached -> inline-content cascade and returns a structured url/id/width/height/source result.
+* extracted the image-resolution cascade into `horshipsrectors_resolve_post_image()` so the ability and any future caller share one resolver.
+* added a `get-image-from-post` text domain to the plugin header.
+
 = 2.0.0 =
 
 * renamed function to be more compatible.

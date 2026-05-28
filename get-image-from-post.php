@@ -7,7 +7,13 @@ Tags: adopt-me
 Author: Hors Hipsrectors
 Author URI:
 Version: 2017.08.13
+Text Domain: get-image-from-post
 */
+
+defined( 'ABSPATH' ) || exit;
+
+// WP 7 Abilities API registration (no-ops on WordPress < 6.9).
+require_once __DIR__ . '/abilities.php';
 
 /**
  * Get Image from Post core file
