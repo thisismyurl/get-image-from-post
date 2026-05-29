@@ -34,9 +34,13 @@ defined( 'ABSPATH' ) || exit;
  *
  * @since 2026.0.0
  *
+ * Content-sourced descriptors carry an `alt` key holding the inline image's own
+ * alt text (possibly ''); attachment-sourced descriptors omit it, since their
+ * alt is read from attachment meta at markup time.
+ *
  * @param int    $post_id Post ID to resolve an image for.
  * @param string $size    Registered image size name. Default 'large'.
- * @return array{url:string,id:int,width:int,height:int,source:string}|WP_Error
+ * @return array{url:string,id:int,width:int,height:int,source:string,alt?:string}|WP_Error
  *     Image descriptor on success, or WP_Error 'no_image' when none is found.
  */
 function horshipsrectors_resolve_post_image( int $post_id, string $size = 'large' ) {
@@ -59,15 +63,19 @@ function horshipsrectors_resolve_post_image( int $post_id, string $size = 'large
 		}
 	}
 
-	// Last resort: the first inline <img> URL in the rendered content.
-	$inline_url = horshipsrectors_first_inline_image_url( $post_id );
-	if ( '' !== $inline_url ) {
+	// Last resort: the first inline <img> in the rendered content. The scraper
+	// returns the image's own alt text alongside its URL so callers building
+	// markup can preserve the editor-authored alternative text rather than
+	// substituting an unrelated string (WCAG 1.1.1).
+	$inline = horshipsrectors_first_inline_image( $post_id );
+	if ( '' !== $inline['url'] ) {
 		return array(
-			'url'    => $inline_url,
+			'url'    => $inline['url'],
 			'id'     => 0,
 			'width'  => 0,
 			'height' => 0,
 			'source' => 'content',
+			'alt'    => $inline['alt'],
 		);
 	}
 
@@ -108,26 +116,34 @@ function horshipsrectors_describe_attachment( int $attachment_id, string $size, 
 }
 
 /**
- * Extracts the first inline image URL from a post's rendered content.
+ * Extracts the first inline image's URL and alt text from rendered content.
  *
  * Parses the post content with DOMDocument rather than a regex so that
  * attribute order, quoting, and srcset variations do not corrupt the match.
- * Returns an empty string when no inline image is present.
+ * Capturing the alt alongside the URL lets markup callers preserve the
+ * editor-authored alternative text instead of substituting the post title
+ * (WCAG 1.1.1). Returns an empty `url` when no inline image is present.
  *
  * @since 2026.0.0
  *
  * @param int $post_id Post ID.
- * @return string Absolute or relative image URL, or '' when none is found.
+ * @return array{url:string,alt:string} The first inline image's URL (absolute
+ *     or relative) and alt text, both '' when no inline image is found.
  */
-function horshipsrectors_first_inline_image_url( int $post_id ): string {
+function horshipsrectors_first_inline_image( int $post_id ): array {
+	$empty = array(
+		'url' => '',
+		'alt' => '',
+	);
+
 	$post = get_post( $post_id );
 	if ( ! $post instanceof WP_Post ) {
-		return '';
+		return $empty;
 	}
 
 	$content = apply_filters( 'the_content', $post->post_content );
 	if ( false === strpos( $content, '<img' ) ) {
-		return '';
+		return $empty;
 	}
 
 	$previous = libxml_use_internal_errors( true );
@@ -141,12 +157,19 @@ function horshipsrectors_first_inline_image_url( int $post_id ): string {
 
 	$images = $document->getElementsByTagName( 'img' );
 	if ( 0 === $images->length ) {
-		return '';
+		return $empty;
 	}
 
-	$src = $images->item( 0 )->getAttribute( 'src' );
+	$first = $images->item( 0 );
+	$src   = $first->getAttribute( 'src' );
+	if ( '' === $src ) {
+		return $empty;
+	}
 
-	return '' === $src ? '' : esc_url_raw( $src );
+	return array(
+		'url' => esc_url_raw( $src ),
+		'alt' => $first->getAttribute( 'alt' ),
+	);
 }
 
 add_action(
@@ -203,6 +226,10 @@ add_action(
 							'type'        => 'string',
 							'enum'        => array( 'featured', 'attached', 'content' ),
 							'description' => __( 'Where the image was resolved from: the featured image, the first attached image, or the first inline image in the content.', 'get-image-from-post' ),
+						),
+						'alt'    => array(
+							'type'        => 'string',
+							'description' => __( 'The inline image\'s own alt text, present only for content-sourced images. Attachment-sourced images carry their alt in attachment meta, read at render time.', 'get-image-from-post' ),
 						),
 					),
 					'additionalProperties' => false,

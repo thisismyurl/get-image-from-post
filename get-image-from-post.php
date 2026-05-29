@@ -41,6 +41,9 @@ require_once __DIR__ . '/abilities.php';
  *  - `image`  Legacy image-index selector. Retained for signature compatibility;
  *             the resolver now returns a single representative image, so this
  *             no longer selects the Nth inline image. See readme.txt.
+ *  - `alt`    Explicit alt text. Honoured verbatim, including an empty `alt=`
+ *             for a decorative image. Omitted, the alt resolves from attachment
+ *             meta, then the inline alt, then the post title.
  *
  * @since 1.0.0
  * @since 2026.0.0 Reimplemented on the modern resolver; PHP 8 safe.
@@ -86,7 +89,10 @@ function horshipsrectors_get_image_from_post( $options = '' ) {
  * @since 2026.0.0
  *
  * @param string $options Raw option string.
- * @return array{show:bool,link:bool,width:int,height:int,strip:bool} Parsed settings.
+ * @return array{show:bool,link:bool,width:int,height:int,strip:bool,alt?:string} Parsed settings.
+ *     The `alt` key is present only when the caller supplied one (so an absent
+ *     alt falls through the resolution chain, while a supplied empty alt is
+ *     honoured as decorative).
  */
 function horshipsrectors_parse_legacy_options( string $options ): array {
 	$settings = array(
@@ -118,6 +124,11 @@ function horshipsrectors_parse_legacy_options( string $options ): array {
 			case 'height':
 				$settings[ $key ] = absint( $value );
 				break;
+			case 'alt':
+				// Set only when supplied so an absent alt falls through the
+				// resolution chain; a supplied empty value stays '' (decorative).
+				$settings['alt'] = sanitize_text_field( $value );
+				break;
 		}
 	}
 
@@ -147,6 +158,50 @@ function horshipsrectors_is_truthy( string $value ): bool {
 }
 
 /**
+ * Resolves the alt text for a resolved image, honouring the chain below.
+ *
+ * Alternative text is the single most consequential accessibility attribute on
+ * an image (WCAG 1.1.1), so it is resolved deliberately rather than hardcoded:
+ *
+ *  1. An explicit caller-supplied alt — including a deliberate `''` for a
+ *     decorative image — is honoured verbatim and short-circuits the chain.
+ *  2. For an attachment-sourced image (featured/attached, with an id), the
+ *     editor-authored `_wp_attachment_image_alt` meta is used when non-empty.
+ *  3. For a content-sourced image, the inline `<img alt>` captured by the
+ *     scraper is used when non-empty.
+ *  4. The post title is the last-resort fallback.
+ *
+ * @since 2026.0.0
+ *
+ * @param array{url:string,id:int,source:string,alt?:string}                          $image    Resolved image descriptor.
+ * @param array{show:bool,link:bool,width:int,height:int,strip:bool,alt?:string|null} $settings Parsed settings.
+ * @param int                                                                         $post_id  Post the image belongs to.
+ * @return string The resolved alt text (unescaped; may be '' for decorative use).
+ */
+function horshipsrectors_resolve_image_alt( array $image, array $settings, int $post_id ): string {
+	// 1. Explicit caller intent wins, including a deliberate '' for decoration.
+	if ( array_key_exists( 'alt', $settings ) && null !== $settings['alt'] ) {
+		return (string) $settings['alt'];
+	}
+
+	// 2. Editor-authored attachment alt text, when the source is an attachment.
+	if ( $image['id'] > 0 && in_array( $image['source'], array( 'featured', 'attached' ), true ) ) {
+		$attachment_alt = (string) get_post_meta( $image['id'], '_wp_attachment_image_alt', true );
+		if ( '' !== $attachment_alt ) {
+			return $attachment_alt;
+		}
+	}
+
+	// 3. The inline image's own alt, preserved by the content scraper.
+	if ( isset( $image['alt'] ) && '' !== $image['alt'] ) {
+		return (string) $image['alt'];
+	}
+
+	// 4. Last resort: the post title.
+	return get_the_title( $post_id );
+}
+
+/**
  * Builds the `<img>` markup (optionally linked) for a resolved image descriptor.
  *
  * Every dynamic value is escaped at the point it enters the markup: the URL with
@@ -155,15 +210,25 @@ function horshipsrectors_is_truthy( string $value ): bool {
  *
  * @since 2026.0.0
  *
- * @param array{url:string,id:int,width:int,height:int,source:string} $image    Resolved image descriptor.
- * @param array{show:bool,link:bool,width:int,height:int,strip:bool}   $settings Parsed legacy settings.
- * @param int                                                          $post_id  Post the image belongs to.
+ * @param array{url:string,id:int,width:int,height:int,source:string,alt?:string}     $image    Resolved image descriptor.
+ * @param array{show:bool,link:bool,width:int,height:int,strip:bool,alt?:string|null} $settings Parsed legacy settings.
+ * @param int                                                                         $post_id  Post the image belongs to.
  * @return string The `<img>` markup, wrapped in an `<a>` when `link` is set.
  */
 function horshipsrectors_build_image_markup( array $image, array $settings, int $post_id ): string {
+	$alt = horshipsrectors_resolve_image_alt( $image, $settings, $post_id );
+
+	// A linked image must not be nameless (WCAG 4.1.2): when an image resolves
+	// to a decorative '' alt but is also wrapped in a link, the <a> would have
+	// no accessible name. Fall back to the post title for the alt in that one
+	// case so the link is named.
+	if ( '' === $alt && $settings['link'] ) {
+		$alt = get_the_title( $post_id );
+	}
+
 	$attributes = array(
 		'src' => esc_url( $image['url'] ),
-		'alt' => esc_attr( get_the_title( $post_id ) ),
+		'alt' => esc_attr( $alt ),
 	);
 
 	if ( ! $settings['strip'] ) {
@@ -200,7 +265,9 @@ function horshipsrectors_build_image_markup( array $image, array $settings, int 
  *
  * The original plugin shipped no shortcode; this is new in the revival and maps
  * the same options as the template tag onto shortcode attributes. `id` targets a
- * specific post; omitted, it resolves the current post in the Loop.
+ * specific post; omitted, it resolves the current post in the Loop. An explicit
+ * `alt` attribute (including `alt=""` for a decorative image) is honoured; absent,
+ * the alt resolves from attachment meta, then the inline alt, then the post title.
  *
  * @since 2026.0.0
  *
@@ -208,6 +275,11 @@ function horshipsrectors_build_image_markup( array $image, array $settings, int 
  * @return string The `<img>` markup, or '' when no image resolves.
  */
 function horshipsrectors_image_shortcode( $atts ): string {
+	// Whether the author wrote an `alt` attribute at all is captured before
+	// shortcode_atts() backfills a default, so an absent alt falls through the
+	// resolution chain while an explicit `alt=""` is honoured as decorative.
+	$alt_supplied = is_array( $atts ) && array_key_exists( 'alt', $atts );
+
 	$atts = shortcode_atts(
 		array(
 			'id'     => 0,
@@ -215,6 +287,7 @@ function horshipsrectors_image_shortcode( $atts ): string {
 			'width'  => 0,
 			'height' => 0,
 			'strip'  => 'false',
+			'alt'    => '',
 		),
 		$atts,
 		'get_image_from_post'
@@ -244,6 +317,10 @@ function horshipsrectors_image_shortcode( $atts ): string {
 		'height' => absint( $atts['height'] ),
 		'strip'  => horshipsrectors_is_truthy( (string) $atts['strip'] ),
 	);
+
+	if ( $alt_supplied ) {
+		$settings['alt'] = sanitize_text_field( (string) $atts['alt'] );
+	}
 
 	return horshipsrectors_build_image_markup( $image, $settings, $post_id );
 }

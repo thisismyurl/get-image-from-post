@@ -77,7 +77,27 @@ Yes:
 
 Without an `id`, the shortcode resolves the current post in the Loop.
 
+= How is the image's alt text chosen? =
+
+By default the plugin uses the best available alternative text: the attachment's editor-authored alt text for a featured or attached image, the inline image's own alt for a content-sourced image, and the post title only as a last resort.
+
+To set it yourself, pass `alt`:
+
+ [get_image_from_post alt="A red barn at sunset"]
+
+For a decorative image that screen readers should skip, pass an empty alt:
+
+ [get_image_from_post alt=""]
+
+The template tag accepts the same option: `horshipsrectors_get_image_from_post( 'alt=' )`. One exception: a decorative empty alt on a linked image (`link=true`) falls back to the post title, because a link must have an accessible name.
+
 == Changelog ==
+
+= 2026.0.1 =
+
+* Accessibility (WCAG 1.1.1): the `<img>` alt text is no longer hardcoded to the post title. It now resolves through a chain — an explicit caller-supplied alt (including an empty `alt=""` for decorative use), then the editor-authored attachment alt text, then the inline image's own alt for content-sourced images, then the post title as a last resort.
+* Added an `alt` option to the template tag, an `alt` attribute to the `[get_image_from_post]` shortcode, and inline-alt capture to the content-source resolver.
+* Accessibility (WCAG 4.1.2): when an image resolves to a decorative empty alt but is also linked (`link=true`), the alt falls back to the post title so the link is not left without an accessible name.
 
 = 2026.0.0 =
 
