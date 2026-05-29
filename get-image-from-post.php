@@ -3,7 +3,7 @@
  * Plugin Name:       Get Image from Post
  * Plugin URI:        https://thisismyurl.com/
  * Description:        Fetches the most representative image for a post — featured image first, then the first attached image, then the first inline image in the content — for use in excerpts, listings, and templates. Exposes a template tag, a shortcode, and a WordPress 7 ability.
- * Version:           2026.0.0
+ * Version:           2026.6148.2110
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Tested up to:      7.0
