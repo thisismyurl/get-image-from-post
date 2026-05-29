@@ -6,7 +6,7 @@
  * Version:           2026.0.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
- * Tested up to:      6.9
+ * Tested up to:      7.0
  * Author:            Christopher Ross
  * Author URI:        https://thisismyurl.com/
  * License:           GPL-2.0-or-later

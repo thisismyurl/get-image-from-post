@@ -4,7 +4,7 @@ Plugin URI: https://thisismyurl.com/
 Tags: images, featured-image, excerpt, thumbnail
 Requires at least: 6.0
 Requires PHP: 7.4
-Tested up to: 6.9
+Tested up to: 7.0
 Stable tag: 2026.0.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
@@ -92,6 +92,10 @@ For a decorative image that screen readers should skip, pass an empty alt:
 The template tag accepts the same option: `horshipsrectors_get_image_from_post( 'alt=' )`. One exception: a decorative empty alt on a linked image (`link=true`) falls back to the post title, because a link must have an accessible name.
 
 == Changelog ==
+
+= 2026.0.2 =
+
+* Bumped `Tested up to` to 7.0 in the plugin header and readme so the compatibility metadata agrees with the WordPress 7 ability the plugin ships.
 
 = 2026.0.1 =
 
