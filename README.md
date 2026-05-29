@@ -1,17 +1,45 @@
-# Get Image From Post
+# Get Image from Post
 
-> **⚠️ This plugin is archived and no longer maintained.**  
-> See [ARCHIVE_NOTICE.md](ARCHIVE_NOTICE.md) for context and modern alternatives.
+Fetches the most representative image for a WordPress post — useful for excerpts,
+archive listings, and custom templates. It resolves in a sensible cascade:
 
-This plugin returned the first inline image from a WordPress post's content.
+1. the post's **featured image**, then
+2. the **first attached image** in the media library, then
+3. the **first inline image** in the post content.
 
-**Do not install on PHP 8.0+ — the plugin uses `create_function()` which was removed in PHP 8.0 and will fatal-error on activation.**
+One resolver underneath every entry point — no duplicated extraction logic.
 
-## Modern Alternatives
+## Usage
 
-- `get_attached_media( 'image', $post_id )` — returns attached images as objects.
-- `wp_get_attachment_image()` — renders with proper `srcset`/`sizes`.
-- [thisismyurl-image-support](https://github.com/thisismyurl/thisismyurl-image-support) — full media library management.
+**Template tag** (in the Loop):
+
+```php
+echo horshipsrectors_get_image_from_post();              // returns <img …> markup
+echo horshipsrectors_get_image_from_post( 'link=true' ); // linked to the permalink
+horshipsrectors_get_image_from_post( 'show=true' );      // echoes instead of returns
+```
+
+**Shortcode:**
+
+```text
+[get_image_from_post]
+[get_image_from_post id="123" link="true" width="600"]
+```
+
+**WordPress 7 ability** (REST / AI-invokable, read-only):
+
+```text
+get-image-from-post/get-image
+```
+
+Returns a structured `{ url, id, width, height, source }` descriptor for a
+known, readable post. No-ops cleanly on WordPress versions without the
+Abilities API.
+
+## Requirements
+
+- WordPress 6.0+
+- PHP 7.4+ (runs clean on PHP 8.x)
 
 ## License
 
