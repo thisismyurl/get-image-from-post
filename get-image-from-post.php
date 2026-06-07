@@ -3,7 +3,7 @@
  * Plugin Name:       Get Image from Post
  * Plugin URI:        https://thisismyurl.com/
  * Description:        Fetches the most representative image for a post — featured image first, then the first attached image, then the first inline image in the content — for use in excerpts, listings, and templates. Exposes a template tag, a shortcode, and a WordPress 7 ability.
- * Version:           2026.6148.2110
+ * Version:           2026.6158.1440
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Tested up to:      7.0
@@ -18,7 +18,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TIMU_GIFP_VERSION', '2026.6148.2110' );
+define( 'TIMU_GIFP_VERSION', '2026.6158.1440' );
 
 // Shared resolver + WP 7 Abilities API registration. The resolver lives there so
 // every entry point in this plugin reads images from one source of truth.
