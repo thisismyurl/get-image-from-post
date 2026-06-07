@@ -18,6 +18,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
+define( 'TIMU_GIFP_VERSION', '2026.6148.2110' );
+
 // Shared resolver + WP 7 Abilities API registration. The resolver lives there so
 // every entry point in this plugin reads images from one source of truth.
 require_once __DIR__ . '/abilities.php';
@@ -28,7 +30,7 @@ require_once __DIR__ . '/abilities.php';
  * Backward-compatible template tag preserved from the original 2017 plugin. It
  * accepts the same `key=value&key=value` option string and returns (or echoes)
  * an `<img>` markup string, so existing theme code keeps working. The internals
- * now sit on top of {@see horshipsrectors_resolve_post_image()} — the same
+ * now sit on top of {@see timu_gifp_resolve_post_image()} — the same
  * featured → attached → inline-content cascade the WP 7 ability uses — instead
  * of the removed `create_function()` scraper that fataled on PHP 8.
  *
@@ -51,10 +53,11 @@ require_once __DIR__ . '/abilities.php';
  * @param string $options Optional `key=value&key=value` option string.
  * @return string The `<img>` markup, or '' when echoed or when no image resolves.
  */
-function horshipsrectors_get_image_from_post( $options = '' ) {
-	$settings = horshipsrectors_parse_legacy_options( (string) $options );
+function timu_gifp_get_image_from_post( $options = '' ) {
+	$settings = timu_gifp_parse_legacy_options( (string) $options );
 
-	$post_id = (int) get_queried_object_id();
+	$queried = get_queried_object();
+	$post_id = $queried instanceof WP_Post ? (int) $queried->ID : 0;
 	if ( 0 === $post_id ) {
 		$current = get_post();
 		$post_id = $current instanceof WP_Post ? (int) $current->ID : 0;
@@ -64,15 +67,15 @@ function horshipsrectors_get_image_from_post( $options = '' ) {
 		return '';
 	}
 
-	$image = horshipsrectors_resolve_post_image( $post_id );
+	$image = timu_gifp_resolve_post_image( $post_id );
 	if ( is_wp_error( $image ) ) {
 		return '';
 	}
 
-	$markup = horshipsrectors_build_image_markup( $image, $settings, $post_id );
+	$markup = timu_gifp_build_image_markup( $image, $settings, $post_id );
 
 	if ( $settings['show'] ) {
-		echo $markup; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Built from escaped parts in horshipsrectors_build_image_markup().
+		echo $markup; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Built from escaped parts in timu_gifp_build_image_markup().
 		return '';
 	}
 
@@ -94,7 +97,7 @@ function horshipsrectors_get_image_from_post( $options = '' ) {
  *     alt falls through the resolution chain, while a supplied empty alt is
  *     honoured as decorative).
  */
-function horshipsrectors_parse_legacy_options( string $options ): array {
+function timu_gifp_parse_legacy_options( string $options ): array {
 	$settings = array(
 		'show'   => false,
 		'link'   => false,
@@ -118,7 +121,7 @@ function horshipsrectors_parse_legacy_options( string $options ): array {
 			case 'show':
 			case 'link':
 			case 'strip':
-				$settings[ $key ] = horshipsrectors_is_truthy( $value );
+				$settings[ $key ] = timu_gifp_is_truthy( $value );
 				break;
 			case 'width':
 			case 'height':
@@ -147,7 +150,7 @@ function horshipsrectors_parse_legacy_options( string $options ): array {
  * @param string $value Raw option value.
  * @return bool Whether the value should be treated as true.
  */
-function horshipsrectors_is_truthy( string $value ): bool {
+function timu_gifp_is_truthy( string $value ): bool {
 	$value = strtolower( trim( $value ) );
 
 	if ( '' === $value || '0' === $value || 'false' === $value || 'no' === $value ) {
@@ -178,7 +181,7 @@ function horshipsrectors_is_truthy( string $value ): bool {
  * @param int                                                                         $post_id  Post the image belongs to.
  * @return string The resolved alt text (unescaped; may be '' for decorative use).
  */
-function horshipsrectors_resolve_image_alt( array $image, array $settings, int $post_id ): string {
+function timu_gifp_resolve_image_alt( array $image, array $settings, int $post_id ): string {
 	// 1. Explicit caller intent wins, including a deliberate '' for decoration.
 	if ( array_key_exists( 'alt', $settings ) && null !== $settings['alt'] ) {
 		return (string) $settings['alt'];
@@ -215,8 +218,8 @@ function horshipsrectors_resolve_image_alt( array $image, array $settings, int $
  * @param int                                                                         $post_id  Post the image belongs to.
  * @return string The `<img>` markup, wrapped in an `<a>` when `link` is set.
  */
-function horshipsrectors_build_image_markup( array $image, array $settings, int $post_id ): string {
-	$alt = horshipsrectors_resolve_image_alt( $image, $settings, $post_id );
+function timu_gifp_build_image_markup( array $image, array $settings, int $post_id ): string {
+	$alt = timu_gifp_resolve_image_alt( $image, $settings, $post_id );
 
 	// A linked image must not be nameless (WCAG 4.1.2): when an image resolves
 	// to a decorative '' alt but is also wrapped in a link, the <a> would have
@@ -274,7 +277,7 @@ function horshipsrectors_build_image_markup( array $image, array $settings, int 
  * @param array|string $atts Shortcode attributes.
  * @return string The `<img>` markup, or '' when no image resolves.
  */
-function horshipsrectors_image_shortcode( $atts ): string {
+function timu_gifp_image_shortcode( $atts ): string {
 	// Whether the author wrote an `alt` attribute at all is captured before
 	// shortcode_atts() backfills a default, so an absent alt falls through the
 	// resolution chain while an explicit `alt=""` is honoured as decorative.
@@ -295,7 +298,8 @@ function horshipsrectors_image_shortcode( $atts ): string {
 
 	$post_id = absint( $atts['id'] );
 	if ( 0 === $post_id ) {
-		$post_id = (int) get_queried_object_id();
+		$queried = get_queried_object();
+		$post_id = $queried instanceof WP_Post ? (int) $queried->ID : 0;
 	}
 	if ( 0 === $post_id ) {
 		$current = get_post();
@@ -305,24 +309,24 @@ function horshipsrectors_image_shortcode( $atts ): string {
 		return '';
 	}
 
-	$image = horshipsrectors_resolve_post_image( $post_id );
+	$image = timu_gifp_resolve_post_image( $post_id );
 	if ( is_wp_error( $image ) ) {
 		return '';
 	}
 
 	$settings = array(
 		'show'   => false,
-		'link'   => horshipsrectors_is_truthy( (string) $atts['link'] ),
+		'link'   => timu_gifp_is_truthy( (string) $atts['link'] ),
 		'width'  => absint( $atts['width'] ),
 		'height' => absint( $atts['height'] ),
-		'strip'  => horshipsrectors_is_truthy( (string) $atts['strip'] ),
+		'strip'  => timu_gifp_is_truthy( (string) $atts['strip'] ),
 	);
 
 	if ( $alt_supplied ) {
 		$settings['alt'] = sanitize_text_field( (string) $atts['alt'] );
 	}
 
-	return horshipsrectors_build_image_markup( $image, $settings, $post_id );
+	return timu_gifp_build_image_markup( $image, $settings, $post_id );
 }
 
-add_shortcode( 'get_image_from_post', 'horshipsrectors_image_shortcode' );
+add_shortcode( 'get_image_from_post', 'timu_gifp_image_shortcode' );
