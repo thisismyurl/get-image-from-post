@@ -5,12 +5,12 @@
  * Exposes the post-image resolver as a discoverable, REST/AI-invokable ability.
  *
  * The 2017 plugin shipped its image lookup inside the procedural template tag
- * `horshipsrectors_get_image_from_post()`, which only ever scraped inline
+ * `timu_gifp_get_image_from_post()`, which only ever scraped inline
  * `<img>` markup out of a `strtolower()`-corrupted content blob, returned an
  * HTML string rather than a resolvable URL, and relied on `create_function()`
  * (removed in PHP 8). That code cannot satisfy a structured `url`/`id`/`source`
  * contract, so the reusable resolution logic is extracted here into one named
- * function, `horshipsrectors_resolve_post_image()`. The ability wraps that
+ * function, `timu_gifp_resolve_post_image()`. The ability wraps that
  * function; nothing reimplements the cascade twice.
  *
  * @package Get_Image_from_Post
@@ -43,11 +43,11 @@ defined( 'ABSPATH' ) || exit;
  * @return array{url:string,id:int,width:int,height:int,source:string,alt?:string}|WP_Error
  *     Image descriptor on success, or WP_Error 'no_image' when none is found.
  */
-function horshipsrectors_resolve_post_image( int $post_id, string $size = 'large' ) {
+function timu_gifp_resolve_post_image( int $post_id, string $size = 'large' ) {
 	// Featured image: the canonical, editor-chosen representative image.
 	$featured_id = (int) get_post_thumbnail_id( $post_id );
 	if ( $featured_id > 0 ) {
-		$image = horshipsrectors_describe_attachment( $featured_id, $size, 'featured' );
+		$image = timu_gifp_describe_attachment( $featured_id, $size, 'featured' );
 		if ( ! is_wp_error( $image ) ) {
 			return $image;
 		}
@@ -57,7 +57,7 @@ function horshipsrectors_resolve_post_image( int $post_id, string $size = 'large
 	$attached = get_attached_media( 'image', $post_id );
 	if ( ! empty( $attached ) ) {
 		$first = array_shift( $attached );
-		$image = horshipsrectors_describe_attachment( (int) $first->ID, $size, 'attached' );
+		$image = timu_gifp_describe_attachment( (int) $first->ID, $size, 'attached' );
 		if ( ! is_wp_error( $image ) ) {
 			return $image;
 		}
@@ -67,7 +67,7 @@ function horshipsrectors_resolve_post_image( int $post_id, string $size = 'large
 	// returns the image's own alt text alongside its URL so callers building
 	// markup can preserve the editor-authored alternative text rather than
 	// substituting an unrelated string (WCAG 1.1.1).
-	$inline = horshipsrectors_first_inline_image( $post_id );
+	$inline = timu_gifp_first_inline_image( $post_id );
 	if ( '' !== $inline['url'] ) {
 		return array(
 			'url'    => $inline['url'],
@@ -97,7 +97,7 @@ function horshipsrectors_resolve_post_image( int $post_id, string $size = 'large
  * @return array{url:string,id:int,width:int,height:int,source:string}|WP_Error
  *     Descriptor on success, or WP_Error when the size cannot be resolved.
  */
-function horshipsrectors_describe_attachment( int $attachment_id, string $size, string $source ) {
+function timu_gifp_describe_attachment( int $attachment_id, string $size, string $source ) {
 	$image = wp_get_attachment_image_src( $attachment_id, $size );
 	if ( false === $image || empty( $image[0] ) ) {
 		return new WP_Error(
@@ -130,7 +130,7 @@ function horshipsrectors_describe_attachment( int $attachment_id, string $size, 
  * @return array{url:string,alt:string} The first inline image's URL (absolute
  *     or relative) and alt text, both '' when no inline image is found.
  */
-function horshipsrectors_first_inline_image( int $post_id ): array {
+function timu_gifp_first_inline_image( int $post_id ): array {
 	$empty = array(
 		'url' => '',
 		'alt' => '',
@@ -236,7 +236,7 @@ add_action(
 				),
 				'execute_callback'    => static function ( $input = array() ) {
 					$input   = is_array( $input ) ? $input : array();
-					$post_id = horshipsrectors_resolve_input_post_id( $input );
+					$post_id = timu_gifp_resolve_input_post_id( $input );
 
 					if ( is_wp_error( $post_id ) ) {
 						return $post_id;
@@ -247,7 +247,7 @@ add_action(
 						$size = 'large';
 					}
 
-					return horshipsrectors_resolve_post_image( $post_id, $size );
+					return timu_gifp_resolve_post_image( $post_id, $size );
 				},
 				'permission_callback' => static function ( $input = array() ) {
 					if ( ! current_user_can( 'read' ) ) {
@@ -259,7 +259,7 @@ add_action(
 					}
 
 					$input   = is_array( $input ) ? $input : array();
-					$post_id = horshipsrectors_resolve_input_post_id( $input );
+					$post_id = timu_gifp_resolve_input_post_id( $input );
 
 					if ( is_wp_error( $post_id ) ) {
 						return $post_id;
@@ -304,11 +304,12 @@ add_action(
  * @param array $input Ability input.
  * @return int|WP_Error Validated post ID, or WP_Error on failure.
  */
-function horshipsrectors_resolve_input_post_id( array $input ) {
+function timu_gifp_resolve_input_post_id( array $input ) {
 	$post_id = isset( $input['post_id'] ) ? absint( $input['post_id'] ) : 0;
 
 	if ( 0 === $post_id ) {
-		$post_id = (int) get_queried_object_id();
+		$queried = get_queried_object();
+		$post_id = $queried instanceof WP_Post ? (int) $queried->ID : 0;
 	}
 
 	if ( 0 === $post_id ) {
